@@ -5,6 +5,7 @@ const cors = require("cors");
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(express.static("public")); // ✅ ใช้ไฟล์ UI
 
 // ❗ ใช้ ENV (สำคัญมากสำหรับ Render)
 const url = process.env.MONGO_URI;
@@ -14,7 +15,7 @@ const client = new MongoClient(url);
 let db;
 
 // ===============================
-// ✅ CONNECT DB (กัน error)
+// ✅ CONNECT DB
 // ===============================
 async function start() {
   try {
@@ -102,46 +103,15 @@ app.get("/report", async (req, res) => {
 
 
 // ===============================
-// ✅ Dashboard Web (แก้ Not Found)
+// ✅ Dashboard Web (ใช้ index.html)
 // ===============================
-app.get("/", async (req, res) => {
-  try {
-    let data = await db.collection("attendance").find().toArray();
-
-    let html = `
-    <h1>🔥 Attendance Dashboard</h1>
-    <table border="1" cellpadding="10">
-    <tr>
-    <th>User</th>
-    <th>Date</th>
-    <th>Time</th>
-    <th>Status</th>
-    </tr>
-    `;
-
-    data.forEach(d=>{
-      html += `
-      <tr>
-      <td>${d.user_id}</td>
-      <td>${d.attend_date}</td>
-      <td>${d.time}</td>
-      <td>${d.status}</td>
-      </tr>
-      `;
-    });
-
-    html += "</table>";
-
-    res.send(html);
-
-  } catch (err) {
-    res.status(500).send("Server Error");
-  }
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/public/index.html");
 });
 
 
 // ===============================
-// ✅ PORT (สำคัญสำหรับ Render)
+// ✅ PORT
 // ===============================
 const PORT = process.env.PORT || 3000;
 
