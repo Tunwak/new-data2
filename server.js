@@ -1,14 +1,20 @@
 const express = require("express");
-const { MongoClient } = require("mongodb");
+const { MongoClient, ObjectId } = require("mongodb");
 const cors = require("cors");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(express.static("public")); // ✅ ใช้ไฟล์ UI
+app.use(express.static("public"));
 
-// ❗ ใช้ ENV (สำคัญมากสำหรับ Render)
+// ===============================
+// ✅ ENV
+// ===============================
 const url = process.env.MONGO_URI;
+if (!url) {
+  console.error("❌ กรุณาตั้งค่า MONGO_URI");
+  process.exit(1);
+}
 
 const client = new MongoClient(url);
 
@@ -30,6 +36,32 @@ start();
 
 
 // ===============================
+// ✅ API เพิ่ม user (สำคัญมาก)
+// ===============================
+app.post("/users", async (req, res) => {
+  try {
+    const { full_name } = req.body;
+
+    if (!full_name) {
+      return res.status(400).send({ message: "กรุณาส่ง full_name" });
+    }
+
+    const result = await db.collection("users").insertOne({
+      full_name
+    });
+
+    res.send({
+      message: "เพิ่ม user สำเร็จ",
+      user_id: result.insertedId
+    });
+
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+});
+
+
+// ===============================
 // ✅ API เช็คชื่อ
 // ===============================
 app.post("/checkin", async (req, res) => {
@@ -40,12 +72,14 @@ app.post("/checkin", async (req, res) => {
       return res.status(400).send({ message: "กรุณาส่ง user_id" });
     }
 
+    const userObjectId = new ObjectId(user_id);
+
     const now = new Date();
     const today = now.toISOString().slice(0,10);
     const timeNow = now.toTimeString().slice(0,8);
 
     let already = await db.collection("attendance")
-      .findOne({ user_id, attend_date: today });
+      .findOne({ user_id: userObjectId, attend_date: today });
 
     if (already) {
       return res.send({ message: "วันนี้เช็คชื่อแล้ว" });
@@ -54,7 +88,7 @@ app.post("/checkin", async (req, res) => {
     const status = timeNow > "09:00:00" ? "สาย" : "ตรงเวลา";
 
     await db.collection("attendance").insertOne({
-      user_id,
+      user_id: userObjectId,
       attend_date: today,
       time: timeNow,
       status
@@ -103,7 +137,7 @@ app.get("/report", async (req, res) => {
 
 
 // ===============================
-// ✅ Dashboard Web (ใช้ index.html)
+// ✅ Dashboard
 // ===============================
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/index.html");
