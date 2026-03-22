@@ -18,105 +18,8 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function formatConfidence(value) {
-  if (value === undefined || value === null || value === "") {
-    return "-";
-  }
-
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "-";
-  }
-
-  return numeric.toFixed(2);
-}
-
 function formatTime(value) {
   return value || "-";
-}
-
-function badgeClass(storage) {
-  if (storage === "stored") {
-    return "stored";
-  }
-
-  if (storage === "error" || storage === "db_unavailable") {
-    return "error";
-  }
-
-  return "preview";
-}
-
-function makePreviewFallbackItems(reportItems) {
-  return reportItems.slice(0, 8).map((item) => ({
-    user_id: item.user_id,
-    display_name: item.display_name || item.full_name || item.user_id,
-    confidence_score: item.confidence_score,
-    source: item.source || "report-fallback",
-    preview_only: false,
-    status: item.status || "Stored",
-    storage: "stored",
-    message: "โหลดจาก /report fallback",
-    attend_date: item.attend_date,
-    time: item.time,
-  }));
-}
-
-async function fetchJsonWithFallback(urls) {
-  let lastError = null;
-
-  for (const url of urls) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Request failed: ${url} (${response.status})`);
-      }
-      return {
-        data: await response.json(),
-        url,
-      };
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  throw lastError || new Error("โหลดข้อมูลจาก API ไม่สำเร็จ");
-}
-
-function renderPreview(previewItems) {
-  previewCount.textContent = String(previewItems.length);
-  previewOnlyCount.textContent = String(
-    previewItems.filter((item) => item.preview_only || item.storage === "preview_only").length
-  );
-
-  if (!previewItems.length) {
-    previewFeed.innerHTML = '<div class="empty-state">ยังไม่มีข้อมูลที่ยิงเข้ามา</div>';
-    return;
-  }
-
-  previewFeed.innerHTML = previewItems
-    .map((item) => {
-      const displayName = item.display_name || item.user_id || "Unknown";
-      return `
-        <article class="feed-item">
-          <div class="feed-top">
-            <div>
-              <div class="feed-name">${escapeHtml(displayName)}</div>
-              <div class="feed-sub">user_id: ${escapeHtml(item.user_id || "-")}</div>
-            </div>
-            <span class="badge ${badgeClass(item.storage)}">${escapeHtml(item.storage || "pending")}</span>
-          </div>
-          <div class="feed-meta">
-            <span class="badge ${badgeClass(item.storage)}">${escapeHtml(item.status || "-")}</span>
-            <span class="muted">เวลา ${escapeHtml(formatTime(item.time))}</span>
-            <span class="muted">ความมั่นใจ ${escapeHtml(formatConfidence(item.confidence_score))}</span>
-            <span class="muted">source ${escapeHtml(item.source || "-")}</span>
-          </div>
-          <p class="muted">${escapeHtml(item.message || "รับข้อมูลจาก API แล้ว")}</p>
-        </article>
-      `;
-    })
-    .join("");
 }
 
 function renderReport(reportItems) {
@@ -125,7 +28,7 @@ function renderReport(reportItems) {
   if (!reportItems.length) {
     reportTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-state">ยังไม่มีข้อมูลที่ถูกบันทึก</td>
+        <td colspan="5" class="empty-state">ยังไม่มีข้อมูล</td>
       </tr>
     `;
     return;
@@ -133,7 +36,7 @@ function renderReport(reportItems) {
 
   reportTableBody.innerHTML = reportItems
     .map((item) => {
-      const displayName = item.display_name || item.full_name || item.user_id || "-";
+      const displayName = item.full_name || item.user_id || "-";
       return `
         <tr>
           <td>${escapeHtml(displayName)}</td>
@@ -141,8 +44,6 @@ function renderReport(reportItems) {
           <td>${escapeHtml(item.attend_date || "-")}</td>
           <td>${escapeHtml(formatTime(item.time))}</td>
           <td>${escapeHtml(item.status || "-")}</td>
-          <td>${escapeHtml(item.source || "-")}</td>
-          <td>${escapeHtml(formatConfidence(item.confidence_score))}</td>
         </tr>
       `;
     })
@@ -151,75 +52,65 @@ function renderReport(reportItems) {
 
 async function loadDashboard() {
   try {
-    let previewItems = [];
-    let previewSource = "/api/preview";
-    try {
-      const previewResult = await fetchJsonWithFallback(["/api/preview"]);
-      previewItems = Array.isArray(previewResult.data) ? previewResult.data : [];
-      previewSource = previewResult.url;
-    } catch (err) {
-      previewItems = [];
-      previewSource = "none";
-    }
+    const response = await fetch("/api/report"); // ✅ ใช้ API ใหม่
+    const data = await response.json();
 
-    const reportResult = await fetchJsonWithFallback(["/api/report", "/report"]);
-    const reportItems = Array.isArray(reportResult.data) ? reportResult.data : [];
+    renderReport(data);
 
-    if (!previewItems.length && reportItems.length) {
-      previewItems = makePreviewFallbackItems(reportItems);
-      previewSource = `${reportResult.url} fallback`;
-    }
-
-    renderPreview(previewItems);
-    renderReport(reportItems);
-    systemStatus.textContent =
-      reportResult.url === "/report" || previewSource !== "/api/preview"
-        ? "พร้อมใช้งาน (fallback mode)"
-        : "พร้อมใช้งาน";
+    systemStatus.textContent = "พร้อมใช้งาน";
     lastRefresh.textContent = new Date().toLocaleTimeString("th-TH");
   } catch (err) {
     systemStatus.textContent = "เชื่อมต่อไม่สำเร็จ";
     lastRefresh.textContent = "-";
-    previewFeed.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+
     reportTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-state">${escapeHtml(err.message)}</td>
+        <td colspan="5" class="empty-state">${escapeHtml(err.message)}</td>
       </tr>
     `;
   }
 }
 
+// ===============================
+// ✅ CHECKIN FORM
+// ===============================
 checkinForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const payload = {
-    user_id: document.getElementById("userIdInput").value.trim(),
-    display_name: document.getElementById("displayNameInput").value.trim(),
-    confidence_score: document.getElementById("confidenceInput").value,
-    source: document.getElementById("sourceInput").value.trim() || "dashboard-mock",
-    preview_only: document.getElementById("previewOnlyInput").checked,
-  };
+  const user_id = document.getElementById("userIdInput").value.trim();
+
+  if (!user_id) {
+    submitResult.textContent = "กรุณากรอก user_id";
+    return;
+  }
 
   submitResult.textContent = "กำลังส่ง...";
 
   try {
-    const response = await fetch("/checkin", {
+    const response = await fetch("/api/checkin", { // ✅ แก้ตรงนี้
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ user_id }), // ✅ ส่งให้ตรง backend
     });
 
     const body = await response.json();
     submitResult.textContent = JSON.stringify(body, null, 2);
+
     await loadDashboard();
   } catch (err) {
     submitResult.textContent = err.message;
   }
 });
 
+// ===============================
+// ✅ REFRESH
+// ===============================
 refreshButton.addEventListener("click", loadDashboard);
 
+// โหลดครั้งแรก
 loadDashboard();
+
+// refresh ทุก 5 วิ
 window.setInterval(loadDashboard, 5000);

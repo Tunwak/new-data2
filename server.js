@@ -36,9 +36,9 @@ start();
 
 
 // ===============================
-// ✅ API เพิ่ม user (สำคัญมาก)
+// ✅ API CREATE USER
 // ===============================
-app.post("/users", async (req, res) => {
+app.post("/api/users", async (req, res) => {
   try {
     const { full_name } = req.body;
 
@@ -62,9 +62,9 @@ app.post("/users", async (req, res) => {
 
 
 // ===============================
-// ✅ API เช็คชื่อ
+// ✅ API CHECKIN
 // ===============================
-app.post("/checkin", async (req, res) => {
+app.post("/api/checkin", async (req, res) => {
   try {
     const { user_id } = req.body;
 
@@ -103,9 +103,9 @@ app.post("/checkin", async (req, res) => {
 
 
 // ===============================
-// ✅ API รายงาน
+// ✅ API REPORT
 // ===============================
-app.get("/report", async (req, res) => {
+app.get("/api/report", async (req, res) => {
   try {
     let data = await db.collection("attendance").aggregate([
       {
