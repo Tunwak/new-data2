@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ObjectId } = require("mongodb");
+const { MongoClient } = require("mongodb"); // ❌ เอา ObjectId ออก
 const cors = require("cors");
 
 const app = express();
@@ -36,23 +36,24 @@ start();
 
 
 // ===============================
-// ✅ API CREATE USER
+// ✅ CREATE USER (ใช้ user_id เป็น string)
 // ===============================
 app.post("/api/users", async (req, res) => {
   try {
-    const { full_name } = req.body;
+    const { user_id, full_name } = req.body;
 
-    if (!full_name) {
-      return res.status(400).send({ message: "กรุณาส่ง full_name" });
+    if (!user_id || !full_name) {
+      return res.status(400).send({ message: "ต้องมี user_id และ full_name" });
     }
 
-    const result = await db.collection("users").insertOne({
+    await db.collection("users").insertOne({
+      user_id,
       full_name
     });
 
     res.send({
       message: "เพิ่ม user สำเร็จ",
-      user_id: result.insertedId
+      user_id
     });
 
   } catch (err) {
@@ -62,7 +63,7 @@ app.post("/api/users", async (req, res) => {
 
 
 // ===============================
-// ✅ API CHECKIN
+// ✅ CHECKIN (ไม่ใช้ ObjectId แล้ว)
 // ===============================
 app.post("/api/checkin", async (req, res) => {
   try {
@@ -72,14 +73,12 @@ app.post("/api/checkin", async (req, res) => {
       return res.status(400).send({ message: "กรุณาส่ง user_id" });
     }
 
-    const userObjectId = new ObjectId(user_id);
-
     const now = new Date();
     const today = now.toISOString().slice(0,10);
     const timeNow = now.toTimeString().slice(0,8);
 
     let already = await db.collection("attendance")
-      .findOne({ user_id: userObjectId, attend_date: today });
+      .findOne({ user_id, attend_date: today });
 
     if (already) {
       return res.send({ message: "วันนี้เช็คชื่อแล้ว" });
@@ -88,7 +87,7 @@ app.post("/api/checkin", async (req, res) => {
     const status = timeNow > "09:00:00" ? "สาย" : "ตรงเวลา";
 
     await db.collection("attendance").insertOne({
-      user_id: userObjectId,
+      user_id, // ✅ ใช้ string
       attend_date: today,
       time: timeNow,
       status
@@ -103,7 +102,7 @@ app.post("/api/checkin", async (req, res) => {
 
 
 // ===============================
-// ✅ API REPORT
+// ✅ REPORT (แก้ lookup ให้ตรง)
 // ===============================
 app.get("/api/report", async (req, res) => {
   try {
@@ -112,7 +111,7 @@ app.get("/api/report", async (req, res) => {
         $lookup:{
           from:"users",
           localField:"user_id",
-          foreignField:"_id",
+          foreignField:"user_id", // ✅ แก้ตรงนี้
           as:"user"
         }
       },
